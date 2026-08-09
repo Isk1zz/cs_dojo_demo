@@ -82,3 +82,25 @@ UNITS.forEach(u => {
     }))
   );
 });
+
+// ================================================
+// Courses group units into separately-browsable tracks.
+// The lobby lists these; picking one filters the unit select.
+// Adding a course = add an entry with the unit ids it contains.
+// `available: false` renders it as a locked "coming soon" card.
+// ================================================
+const COURSES = [
+  {
+    id: "intro-cs",
+    title: "Intro to CS",
+    subtitle: "Networks, programming and emerging technologies",
+    icon: "\u{1F4BB}",
+    units: [6, 7, 8],
+    available: true
+  }
+];
+
+// Units not claimed by any course still need somewhere to live.
+COURSES.forEach(c => {
+  c.unitObjects = UNITS.filter(u => c.units.includes(u.id));
+});

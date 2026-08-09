@@ -12,7 +12,7 @@
 
 const DB = (() => {
   const STORAGE_KEY = "unit6-dojo-db";
-  const DB_VERSION = 2;
+  const DB_VERSION = 4;
 
   // ---- Default structures ----
   function defaultDB() {
@@ -29,6 +29,11 @@ const DB = (() => {
       createdAt: new Date().toISOString(),
       completedTopics: [],
       completedChunks: {},   // { topicId: [0, 1, 2] }
+      reviews: {},           // { topicId: { due, interval, ease, lapses, reps } }
+      seenQuotes: [],        // recent quote indices, so they don't repeat
+      charge: 0,             // lightning charge, capped at CHARGE_CAP
+      theme: "indigo",       // colour theme id
+      lastPosition: null,    // { unitId, topicId, chunkIdx } — resume point
       stats: {
         miniQuizTotal: 0,
         miniQuizCorrect: 0,
@@ -83,8 +88,30 @@ const DB = (() => {
   }
 
   function migrate(db) {
-    // Future migrations go here
-    // e.g. if (db.version === 1) { ... upgrade to 2 ... }
+    // v2 -> v3: introduce spaced review scheduling.
+    // Topics already completed are given a review due today, so an
+    // existing user immediately sees their back catalogue rather than
+    // an empty queue. Nothing is lost.
+    if (db.version < 3) {
+      const today = new Date().toISOString().slice(0, 10);
+      for (const p of Object.values(db.profiles || {})) {
+        if (!p.reviews) {
+          p.reviews = {};
+          (p.completedTopics || []).forEach(id => {
+            p.reviews[id] = { due: today, interval: 1, ease: 2.5, lapses: 0, reps: 1 };
+          });
+        }
+        if (!p.seenQuotes) p.seenQuotes = [];
+      }
+    }
+    // v3 -> v4: charge, theme and resume position.
+    if (db.version < 4) {
+      for (const p of Object.values(db.profiles || {})) {
+        if (typeof p.charge !== "number") p.charge = 0;
+        if (!p.theme) p.theme = "indigo";
+        if (p.lastPosition === undefined) p.lastPosition = null;
+      }
+    }
     db.version = DB_VERSION;
     save(db);
     return db;
@@ -251,6 +278,184 @@ const DB = (() => {
     };
   }
 
+  // ---- Spaced review (SM-2) ----
+  // Woźniak's 1987 algorithm. Deliberately NOT FSRS: FSRS needs hundreds
+  // of reviews before its model fits, so it performs worse than SM-2 at
+  // small scale. Revisit once there is real usage data.
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function addDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // quality: 0-5. Derived from exam percentage.
+  function scheduleReview(topicId, quality) {
+    const db = load();
+    const p = db.profiles[db.activeProfileId];
+    if (!p) return;
+    if (!p.reviews) p.reviews = {};
+
+    const r = p.reviews[topicId] || { interval: 0, ease: 2.5, lapses: 0, reps: 0 };
+
+    if (quality < 3) {
+      // Failed. Back to tomorrow, and the card gets easier to trigger.
+      r.reps = 0;
+      r.interval = 1;
+      r.lapses = (r.lapses || 0) + 1;
+    } else {
+      r.reps = (r.reps || 0) + 1;
+      if (r.reps === 1) r.interval = 1;
+      else if (r.reps === 2) r.interval = 6;
+      else r.interval = Math.round(r.interval * r.ease);
+    }
+
+    // Ease adjustment, floored at 1.3 to avoid SM-2's "ease hell".
+    r.ease = Math.max(1.3, r.ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
+    r.due = addDays(r.interval);
+    p.reviews[topicId] = r;
+    save(db);
+  }
+
+  function getReviews() {
+    const p = getActiveProfile();
+    return p ? (p.reviews || {}) : {};
+  }
+
+  function getDueTopicIds() {
+    const reviews = getReviews();
+    const today = todayStr();
+    return Object.keys(reviews).filter(id => reviews[id].due && reviews[id].due <= today);
+  }
+
+  function daysUntilDue(topicId) {
+    const r = getReviews()[topicId];
+    if (!r || !r.due) return null;
+    const diff = Math.ceil((new Date(r.due) - new Date(todayStr())) / 86400000);
+    return diff;
+  }
+
+  // ---- Weak spots ----
+  // Answers "what should I study now?" — the only question a learner has.
+  // Everything here is already recorded; it was just never surfaced.
+  function getWeakSpots(limit) {
+    const p = getActiveProfile();
+    if (!p) return [];
+    const reviews = p.reviews || {};
+    const ts = p.stats.topicStats || {};
+    return Object.keys(ts)
+      .map(id => ({
+        topicId: id,
+        lastScore: ts[id].lastScore || 0,
+        bestScore: ts[id].bestScore || 0,
+        attempts: ts[id].attempts || 0,
+        lapses: (reviews[id] && reviews[id].lapses) || 0
+      }))
+      .filter(t => t.attempts > 0)
+      // Composite weakness: recent score dominates, each lapse costs
+      // 10 points. Sorting by lapses first would rank a topic scoring
+      // 100% above one scoring 40%, which is not what "weak" means.
+      .map(t => ({ ...t, weakness: t.lastScore - (t.lapses * 10) }))
+      .filter(t => t.weakness < 80)
+      .sort((a, b) => a.weakness - b.weakness)
+      .slice(0, limit || 3);
+  }
+
+  // ---- Quote rotation ----
+  function getSeenQuotes() {
+    const p = getActiveProfile();
+    return p ? (p.seenQuotes || []) : [];
+  }
+
+  function pushSeenQuote(idx, keep) {
+    const db = load();
+    const p = db.profiles[db.activeProfileId];
+    if (!p) return;
+    if (!p.seenQuotes) p.seenQuotes = [];
+    p.seenQuotes.push(idx);
+    const max = keep || 12;
+    if (p.seenQuotes.length > max) p.seenQuotes = p.seenQuotes.slice(-max);
+    save(db);
+  }
+
+  // ---- Lightning charge ----
+  // Capped so it can't inflate forever. NOTE: a cap with no way to
+  // spend charge means it stops meaning anything once full — the
+  // planned rewards list is what gives it a sink.
+  const CHARGE_CAP = 150;
+
+  function getCharge() {
+    const p = getActiveProfile();
+    return p ? (p.charge || 0) : 0;
+  }
+
+  // Returns how much was ACTUALLY added, which may be less than
+  // requested if the cap was hit — the UI needs the real number.
+  function addCharge(amount) {
+    const db = load();
+    const p = db.profiles[db.activeProfileId];
+    if (!p) return 0;
+    const before = p.charge || 0;
+    const after = Math.min(CHARGE_CAP, before + amount);
+    p.charge = after;
+    save(db);
+    return after - before;
+  }
+
+  function chargeCap() { return CHARGE_CAP; }
+
+  // ---- Theme ----
+  function getTheme() {
+    const p = getActiveProfile();
+    return (p && p.theme) || "indigo";
+  }
+
+  function setTheme(id) {
+    const db = load();
+    const p = db.profiles[db.activeProfileId];
+    if (!p) return;
+    p.theme = id;
+    save(db);
+  }
+
+  // ---- Resume position ----
+  // completedChunks was written from the very first version and never
+  // read by anything. This is what it was always for.
+  function setPosition(unitId, topicId, chunkIdx) {
+    const db = load();
+    const p = db.profiles[db.activeProfileId];
+    if (!p) return;
+    p.lastPosition = { unitId, topicId, chunkIdx };
+    save(db);
+  }
+
+  function getPosition() {
+    const p = getActiveProfile();
+    return p ? (p.lastPosition || null) : null;
+  }
+
+  function clearPosition() {
+    const db = load();
+    const p = db.profiles[db.activeProfileId];
+    if (!p) return;
+    p.lastPosition = null;
+    save(db);
+  }
+
+  // Furthest chunk completed in a topic, so returning resumes there
+  // rather than restarting from chunk 1.
+  function resumeChunkFor(topicId, chunkCount) {
+    const done = getCompletedChunks()[topicId];
+    if (!done || !done.size) return 0;
+    for (let i = 0; i < chunkCount; i++) {
+      if (!done.has(i)) return i;
+    }
+    return 0; // every chunk done — topic gets replayed from the top
+  }
+
   // ---- Export / Import ----
   function exportData() {
     const db = load();
@@ -302,6 +507,22 @@ const DB = (() => {
     recordQuizAnswer,
     recordExamResult,
     getStats,
+    scheduleReview,
+    getReviews,
+    getDueTopicIds,
+    daysUntilDue,
+    getWeakSpots,
+    getSeenQuotes,
+    pushSeenQuote,
+    getCharge,
+    addCharge,
+    chargeCap,
+    getTheme,
+    setTheme,
+    setPosition,
+    getPosition,
+    clearPosition,
+    resumeChunkFor,
     exportData,
     importData
   };

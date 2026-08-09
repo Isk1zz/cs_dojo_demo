@@ -10,6 +10,13 @@
 </head>
 <body>
   <div id="app">
+    <!-- ====== Lightning charge bar ====== -->
+    <div id="charge-bar" class="charge-bar" style="display:none;">
+      <span class="charge-bolt">&#9889;</span>
+      <div class="charge-track"><div id="charge-fill" class="charge-fill"></div></div>
+      <span id="charge-value" class="charge-value">0/150</span>
+    </div>
+    <div id="bolt-layer" class="bolt-layer"></div>
     <!-- ====== Profile Setup Modal (first launch) ====== -->
     <div id="profile-modal" class="modal-overlay" style="display:none;">
       <div class="modal-card">
@@ -63,7 +70,7 @@
         <div class="landing-features">
           <div class="feat"><span class="feat-icon">📖</span><span>Bite-sized lessons</span></div>
           <div class="feat"><span class="feat-icon">🧪</span><span>A question after every chunk</span></div>
-          <div class="feat"><span class="feat-icon">🏆</span><span>Mastery exams</span></div>
+          <div class="feat"><span class="feat-icon">🏆</span><span>Mastery exams &amp; spaced review</span></div>
         </div>
         <div class="landing-modules">
           <div class="landing-mod"><span class="lm-icon">🖧</span><span>Unit 6 — Networks &amp; Security</span></div>
@@ -75,9 +82,95 @@
       </div>
     </section>
 
+    <!-- ====== Lobby ====== -->
+    <section id="lobby" class="screen">
+      <div class="lobby-inner">
+        <div class="lobby-brand">CS<span class="accent">&#36947;&#22580;</span></div>
+        <p class="lobby-welcome" id="lobby-welcome">Welcome back.</p>
+        <div class="lobby-actions">
+          <button id="btn-lobby-courses" class="lobby-tile primary">
+            <span class="lt-icon">&#128218;</span>
+            <span class="lt-body">
+              <span class="lt-title">Dojo-Courses</span>
+              <span class="lt-sub">Choose a course and start training</span>
+            </span>
+            <span class="arrow">&rarr;</span>
+          </button>
+          <button id="btn-lobby-resume" class="lobby-tile" style="display:none;">
+            <span class="lt-icon">&#8617;</span>
+            <span class="lt-body">
+              <span class="lt-title">Continue where you left off</span>
+              <span class="lt-sub" id="lobby-resume-sub"></span>
+            </span>
+            <span class="arrow">&rarr;</span>
+          </button>
+          <button id="btn-lobby-review" class="lobby-tile" style="display:none;">
+            <span class="lt-icon">&#128257;</span>
+            <span class="lt-body">
+              <span class="lt-title">Review what's due</span>
+              <span class="lt-sub" id="lobby-review-sub"></span>
+            </span>
+            <span class="arrow">&rarr;</span>
+          </button>
+          <button id="btn-lobby-garden" class="lobby-tile">
+            <span class="lt-icon">&#127793;</span>
+            <span class="lt-body">
+              <span class="lt-title">Garden</span>
+              <span class="lt-sub" id="lobby-garden-sub">What you've grown so far</span>
+            </span>
+            <span class="arrow">&rarr;</span>
+          </button>
+          <button id="btn-lobby-stats" class="lobby-tile subtle">
+            <span class="lt-icon">&#128202;</span>
+            <span class="lt-body">
+              <span class="lt-title">Statistics</span>
+              <span class="lt-sub">Progress, weak spots, exam scores</span>
+            </span>
+            <span class="arrow">&rarr;</span>
+          </button>
+          <button id="btn-lobby-settings" class="lobby-tile subtle">
+            <span class="lt-icon">&#9881;</span>
+            <span class="lt-body">
+              <span class="lt-title">Settings</span>
+              <span class="lt-sub">Colour theme and data</span>
+            </span>
+            <span class="arrow">&rarr;</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====== Garden ====== -->
+    <section id="garden" class="screen">
+      <div class="topbar">
+        <button id="btn-back-lobby2" class="btn-ghost">&larr; Lobby</button>
+        <h2 class="topbar-title">Your <span class="accent">Garden</span></h2>
+      </div>
+      <div class="garden-body" id="garden-body"></div>
+    </section>
+
+    <!-- ====== Settings ====== -->
+    <section id="settings" class="screen">
+      <div class="topbar">
+        <button id="btn-back-lobby3" class="btn-ghost">&larr; Lobby</button>
+        <h2 class="topbar-title"><span class="accent">Settings</span></h2>
+      </div>
+      <div class="settings-body" id="settings-body"></div>
+    </section>
+
+    <!-- ====== Course Select ====== -->
+    <section id="course-select" class="screen">
+      <div class="topbar">
+        <button id="btn-back-lobby" class="btn-ghost">&larr; Lobby</button>
+        <h2 class="topbar-title">Dojo-<span class="accent">Courses</span></h2>
+      </div>
+      <div class="topic-map-body" id="course-select-body"></div>
+    </section>
+
     <!-- ====== Unit Select ====== -->
     <section id="unit-select" class="screen">
       <div class="topbar">
+        <button id="btn-back-courses" class="btn-ghost">&larr; Courses</button>
         <h2 class="topbar-title">Choose a <span class="accent">Unit</span></h2>
       </div>
       <div class="topic-map-body" id="unit-select-body"></div>
@@ -134,6 +227,8 @@
         <h2 id="result-title"></h2>
         <p id="result-desc"></p>
         <div id="result-score" class="result-score"></div>
+        <div id="result-charge"></div>
+        <div id="result-wisdom"></div>
         <div class="result-btns">
           <button id="btn-retry" class="btn-primary">Retry Exam</button>
           <button id="btn-to-topics" class="btn-ghost">Back to Topics</button>
@@ -143,6 +238,7 @@
   </div>
 
   <!-- Data & logic (order matters!) -->
+  <script src="quotes.js"></script>
   <script src="data_m1.js"></script>
   <script src="data_m2.js"></script>
   <script src="data_m3.js"></script>
