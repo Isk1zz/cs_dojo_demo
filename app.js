@@ -199,7 +199,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-value cyan">${stats.miniQuizAccuracy}%</div>
-          <div class="stat-label">Mini Quiz Accuracy</div>
+          <div class="stat-label">Question Accuracy</div>
         </div>
         <div class="stat-card">
           <div class="stat-value yellow">${stats.examAccuracy}%</div>
@@ -210,7 +210,7 @@
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value accent">${stats.miniQuizCorrect}/${stats.miniQuizTotal}</div>
-          <div class="stat-label">Mini Quiz Score</div>
+          <div class="stat-label">Question Score</div>
         </div>
         <div class="stat-card">
           <div class="stat-value green">${stats.examsPassed}/${stats.examsTaken}</div>
@@ -400,6 +400,17 @@
   }
 
   function renderExplain(body, chunk) {
+    // Explanations may be a single `text` string (legacy, modules 1-4) or an
+    // array of `blocks` (modules 5+). Blocks let one concept run across several
+    // passages with their own sub-headings instead of a single wall of text.
+    const blocks = chunk.explain.blocks
+      || (chunk.explain.text ? [{ text: chunk.explain.text }] : []);
+
+    const blocksHtml = blocks.map(b => `
+      ${b.heading ? `<h3 class="chunk-subhead">${b.heading}</h3>` : ""}
+      <div class="chunk-text">${b.text}</div>
+    `).join("");
+
     let analogyHtml = "";
     if (chunk.explain.analogy) {
       analogyHtml = `
@@ -408,12 +419,30 @@
           <div class="analogy-text">${chunk.explain.analogy}</div>
         </div>`;
     }
+
+    // Citations let a reader verify any claim in the chunk against a real,
+    // findable source rather than taking the app's word for it.
+    let sourcesHtml = "";
+    if (chunk.explain.sources && chunk.explain.sources.length) {
+      const items = chunk.explain.sources.map(src => `
+        <li class="source-item">
+          <span class="source-ref">${src.ref}</span>
+          ${src.note ? `<span class="source-note">${src.note}</span>` : ""}
+        </li>`).join("");
+      sourcesHtml = `
+        <details class="sources-box">
+          <summary class="sources-label">📚 Sources &amp; further reading</summary>
+          <ul class="sources-list">${items}</ul>
+        </details>`;
+    }
+
     body.innerHTML = `
       <div class="chunk-section">
         <div class="chunk-phase explain">📖 Explanation</div>
         <h2 class="chunk-title">${chunk.title}</h2>
-        <div class="chunk-text">${chunk.explain.text}</div>
+        ${blocksHtml}
         ${analogyHtml}
+        ${sourcesHtml}
         <div class="btn-row">
           <button id="btn-next-phase" class="btn-primary">See Example <span class="arrow">→</span></button>
         </div>
@@ -440,7 +469,7 @@
         </div>
         <div class="btn-row">
           <button id="btn-prev-phase" class="btn-ghost">← Back to explanation</button>
-          <button id="btn-next-phase" class="btn-primary">Take Mini Quiz <span class="arrow">→</span></button>
+          <button id="btn-next-phase" class="btn-primary">Answer Question <span class="arrow">→</span></button>
         </div>
       </div>
     `;
@@ -490,7 +519,7 @@
 
     body.innerHTML = `
       <div class="chunk-section">
-        <div class="chunk-phase quiz">❓ Mini Quiz</div>
+        <div class="chunk-phase quiz">❓ Question</div>
         <h2 class="chunk-title">${chunk.title}</h2>
         <div class="quiz-question">${q.question}</div>
         <div class="quiz-options">${optionsHtml}</div>

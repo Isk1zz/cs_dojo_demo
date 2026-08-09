@@ -21,9 +21,12 @@ const MODULES = [
   MODULE_2,   // The Internet (Unit 6)
   MODULE_3,   // Security (Unit 6)
   MODULE_4,   // Programming Fundamentals (Unit 7)
+  MODULE_5,   // Machine Learning (Unit 8)
 
   // ── Following modules go here ──
-  // MODULE_5,  // e.g., "Databases" (Unit 8 topics)
+  // Unit 8 continues: Cloud Computing, Big Data, Blockchain, IoT & Sensors.
+  // See unit8-dojo-source.md for the collected source material and the
+  // open decision on whether Unit 8 stays one UNITS entry or splits in two.
 ];
 
 // Units group modules into independent, separately-unlocked tracks.
@@ -43,6 +46,13 @@ const UNITS = [
     subtitle: "Programming Fundamentals",
     icon: "💻",
     modules: [MODULE_4]
+  },
+  {
+    id: 8,
+    title: "Unit 8",
+    subtitle: "Emerging Technologies",
+    icon: "🧠",
+    modules: [MODULE_5]
   }
 ];
 
