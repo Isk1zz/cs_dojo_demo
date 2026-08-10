@@ -1,0 +1,106 @@
+// ================================================
+// Dojo — Data Combiner
+//
+// ARCHITECTURE NOTE (future expansion):
+// ──────────────────────────────────────
+// To add new modules, create a data file (e.g., data_m5.js)
+// that defines a const (e.g., MODULE_5) with a `unit` field,
+// then:
+//   1. Add a <script src="data_m5.js"></script> in index.html
+//      BEFORE this file's <script> tag.
+//   2. Add MODULE_5 to the MODULES array below.
+//   3. Add it to an existing UNITS entry, or create a new
+//      UNITS entry if it belongs to a new unit.
+//
+// The app, DB, and stats will automatically pick up
+// new modules — no other code changes needed.
+// ================================================
+
+const MODULES = [
+  MODULE_1,   // Computer Networks (Unit 6)
+  MODULE_2,   // The Internet (Unit 6)
+  MODULE_3,   // Security (Unit 6)
+  MODULE_4,   // Programming Fundamentals (Unit 7)
+  MODULE_5,   // Machine Learning (Unit 8)
+
+  // ── Following modules go here ──
+  // Unit 8 continues: Cloud Computing, Big Data, Blockchain, IoT & Sensors.
+  // See unit8-dojo-source.md for the collected source material and the
+  // open decision on whether Unit 8 stays one UNITS entry or splits in two.
+];
+
+// Units group modules into independent, separately-unlocked tracks.
+// Each unit has its own sequential progression — finishing Unit 6
+// is NOT required to start Unit 7.
+const UNITS = [
+  {
+    id: 6,
+    title: "Unit 6",
+    subtitle: "Networks, Internet & Security",
+    icon: "🖧",
+    modules: [MODULE_1, MODULE_2, MODULE_3]
+  },
+  {
+    id: 7,
+    title: "Unit 7",
+    subtitle: "Programming Fundamentals",
+    icon: "💻",
+    modules: [MODULE_4]
+  },
+  {
+    id: 8,
+    title: "Unit 8",
+    subtitle: "Emerging Technologies",
+    icon: "🧠",
+    modules: [MODULE_5]
+  }
+];
+
+// Flatten ALL topics across every unit — used for grand-total stats
+// (the Stats modal shows progress across everything, all units combined).
+const ALL_TOPICS = MODULES.flatMap(m =>
+  m.topics.map(t => ({
+    ...t,
+    moduleId: m.id,
+    moduleTitle: m.title,
+    moduleIcon: m.icon,
+    unit: m.unit
+  }))
+);
+
+// Per-unit flattened topic lists — used for scoped rendering and
+// INDEPENDENT sequential unlock within each unit.
+const UNIT_TOPICS = {};
+UNITS.forEach(u => {
+  UNIT_TOPICS[u.id] = u.modules.flatMap(m =>
+    m.topics.map(t => ({
+      ...t,
+      moduleId: m.id,
+      moduleTitle: m.title,
+      moduleIcon: m.icon,
+      unit: m.unit
+    }))
+  );
+});
+
+// ================================================
+// Courses group units into separately-browsable tracks.
+// The lobby lists these; picking one filters the unit select.
+// Adding a course = add an entry with the unit ids it contains.
+// `available: false` renders it as a locked "coming soon" card.
+// ================================================
+const COURSES = [
+  {
+    id: "intro-cs",
+    title: "Intro to CS",
+    subtitle: "Networks, programming and emerging technologies",
+    icon: "\u{1F4BB}",
+    units: [6, 7, 8],
+    available: true
+  }
+];
+
+// Units not claimed by any course still need somewhere to live.
+COURSES.forEach(c => {
+  c.unitObjects = UNITS.filter(u => c.units.includes(u.id));
+});
